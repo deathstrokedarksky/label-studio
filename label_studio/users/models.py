@@ -1,10 +1,10 @@
-"""This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
-"""
+"""This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license."""
+
 import datetime
-from typing import Optional
 
 from core.utils.common import load_func
 from core.utils.db import fast_first
+from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
@@ -14,7 +14,6 @@ from django.dispatch import receiver
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
-from organizations.models import Organization, OrganizationMember
 from rest_framework.authtoken.models import Token
 from users.functions import hash_upload
 
@@ -163,6 +162,7 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
     def is_organization_admin(self, org_pk):
         if self.role != UserRoles.ADMIN:
             return False
+        OrganizationMember = apps.get_model('organizations', 'OrganizationMember')
         return OrganizationMember.objects.filter(
             user=self,
             organization_id=org_pk,
@@ -177,11 +177,13 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
         return annotations.values_list('project').distinct().count()
 
     @cached_property
-    def own_organization(self) -> Optional[Organization]:
+    def own_organization(self):
+        Organization = apps.get_model('organizations', 'Organization')
         return fast_first(Organization.objects.filter(created_by=self))
 
     @cached_property
     def has_organization(self):
+        Organization = apps.get_model('organizations', 'Organization')
         return Organization.objects.filter(created_by=self).exists()
 
     def clean(self):
