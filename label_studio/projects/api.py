@@ -47,6 +47,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import exception_handler
+from projects.permissions import IsProjectMember
 from tasks.models import Task
 from tasks.serializers import (
     NextTaskSerializer,
@@ -233,6 +234,7 @@ class ProjectListAPI(generics.ListCreateAPIView):
     serializer_class = ProjectSerializer
     filter_backends = [filters.OrderingFilter, DjangoFilterBackend]
     filterset_class = ProjectFilterSet
+    permission_classes = api_settings.DEFAULT_PERMISSION_CLASSES
     permission_required = ViewClassPermission(
         GET=all_permissions.projects_view,
         POST=all_permissions.projects_create,
@@ -244,7 +246,7 @@ class ProjectListAPI(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
         filter = serializer.validated_data.get('filter')
-        projects = Project.objects.filter(organization=self.request.user.active_organization).order_by(
+        projects = Project.objects.for_user(self.request.user).order_by(
             F('pinned_at').desc(nulls_last=True), '-created_at'
         )
         if filter in ['pinned_only', 'exclude_pinned']:
@@ -299,7 +301,7 @@ class ProjectCountsListAPI(generics.ListAPIView):
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
-        return Project.objects.with_counts(fields=fields).filter(organization=self.request.user.active_organization)
+        return Project.objects.with_counts(fields=fields).for_user(self.request.user)
 
 
 @method_decorator(
@@ -409,6 +411,7 @@ class ProjectCountsListAPI(generics.ListAPIView):
 class ProjectAPI(generics.RetrieveUpdateDestroyAPIView):
     parser_classes = (JSONParser, FormParser, MultiPartParser)
     queryset = Project.objects.with_counts()
+    permission_classes = api_settings.DEFAULT_PERMISSION_CLASSES + [IsProjectMember]
     permission_required = ViewClassPermission(
         GET=all_permissions.projects_view,
         DELETE=all_permissions.projects_delete,
@@ -425,7 +428,7 @@ class ProjectAPI(generics.RetrieveUpdateDestroyAPIView):
         serializer = GetFieldsSerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         fields = serializer.validated_data.get('include')
-        return Project.objects.with_counts(fields=fields).filter(organization=self.request.user.active_organization)
+        return Project.objects.with_counts(fields=fields).for_user(self.request.user)
 
     def get(self, request, *args, **kwargs):
         return super(ProjectAPI, self).get(request, *args, **kwargs)

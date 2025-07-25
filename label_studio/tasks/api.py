@@ -181,7 +181,10 @@ class TaskListAPI(DMTaskListAPI):
 
     def filter_queryset(self, queryset):
         queryset = super().filter_queryset(queryset)
-        return queryset.filter(project__organization=self.request.user.active_organization)
+        queryset = queryset.filter(project__organization=self.request.user.active_organization)
+        if not self.request.user.is_organization_admin(self.request.user.active_organization_id):
+            queryset = queryset.filter(project__members__user=self.request.user)
+        return queryset
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -853,7 +856,10 @@ class PredictionAPI(viewsets.ModelViewSet):
     filterset_fields = ['task', 'task__project', 'project']
 
     def get_queryset(self):
-        return Prediction.objects.filter(project__organization=self.request.user.active_organization)
+        qs = Prediction.objects.filter(project__organization=self.request.user.active_organization)
+        if not self.request.user.is_organization_admin(self.request.user.active_organization_id):
+            qs = qs.filter(task__project__members__user=self.request.user)
+        return qs
 
 
 @method_decorator(name='get', decorator=extend_schema(exclude=True))

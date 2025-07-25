@@ -34,6 +34,7 @@ from django.db.models import Avg, BooleanField, Case, Count, GeneratedField, JSO
 from django.db.models.expressions import RawSQL
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
+from users.models import UserRoles
 from label_studio_sdk._extensions.label_studio_tools.core.label_config import parse_config
 from labels_manager.models import Label
 from projects.functions import (
@@ -85,7 +86,12 @@ class ProjectManager(models.Manager):
     }
 
     def for_user(self, user):
-        return self.filter(organization=user.active_organization)
+        if user.role == UserRoles.ADMIN:
+            return self.filter(organization=user.active_organization)
+        return (
+            self.filter(organization=user.active_organization, members__user=user)
+            .distinct()
+        )
 
     def with_counts(self, fields=None):
         return self.with_counts_annotate(self, fields=fields)
@@ -1234,6 +1240,13 @@ class ProjectMember(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='project_memberships', help_text='User ID'
     )
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='members', help_text='Project ID')
+    role = models.CharField(
+        _('role'),
+        max_length=32,
+        choices=UserRoles.choices,
+        default=UserRoles.ANNOTATOR,
+        help_text='Role of the user in this project',
+    )
     enabled = models.BooleanField(default=True, help_text='Project member is enabled')
     created_at = models.DateTimeField(_('created at'), auto_now_add=True)
     updated_at = models.DateTimeField(_('updated at'), auto_now=True)
