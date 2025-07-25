@@ -1,17 +1,17 @@
-"""This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
-"""
+"""This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license."""
+
 import os
 import uuid
 from time import time
 
 from core.utils.common import load_func
 from django import forms
+from django.apps import apps
 from django.conf import settings
 from django.contrib import auth
 from django.core.files.images import get_image_dimensions
 from django.shortcuts import redirect
 from django.urls import reverse
-from organizations.models import Organization
 
 
 def hash_upload(instance, filename):
@@ -61,6 +61,7 @@ def save_user(request, next_page, user_form):
     user.username = user.email.split('@')[0]
     user.save()
 
+    Organization = apps.get_model('organizations', 'Organization')
     if Organization.objects.exists():
         org = Organization.objects.first()
         org.add_user(user)
