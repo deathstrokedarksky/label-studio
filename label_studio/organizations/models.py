@@ -9,6 +9,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
+from users.models import UserRoles
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,14 @@ class OrganizationMember(OrganizationMemberMixin, models.Model):
     )
     organization = models.ForeignKey(
         'organizations.Organization', on_delete=models.CASCADE, help_text='Organization ID'
+    )
+
+    role = models.CharField(
+        _('role'),
+        max_length=32,
+        choices=UserRoles.choices,
+        default=UserRoles.ANNOTATOR,
+        help_text='Role of the user in this organization',
     )
 
     created_at = models.DateTimeField(_('created at'), auto_now_add=True)

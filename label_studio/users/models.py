@@ -1,10 +1,10 @@
-"""This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
-"""
+"""This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license."""
+
 import datetime
-from typing import Optional
 
 from core.utils.common import load_func
 from core.utils.db import fast_first
+from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
@@ -14,7 +14,6 @@ from django.dispatch import receiver
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
-from organizations.models import Organization
 from rest_framework.authtoken.models import Token
 from users.functions import hash_upload
 
@@ -24,6 +23,12 @@ for r in range(YEAR_START, (datetime.datetime.now().year + 1)):
     YEAR_CHOICES.append((r, r))
 
 year = models.IntegerField(_('year'), choices=YEAR_CHOICES, default=datetime.datetime.now().year)
+
+
+class UserRoles(models.TextChoices):
+    ADMIN = 'ADMIN', 'Admin'
+    MANAGER = 'MANAGER', 'Manager'
+    ANNOTATOR = 'ANNOTATOR', 'Annotator'
 
 
 class UserManager(BaseUserManager):
@@ -116,6 +121,14 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
         'organizations.Organization', null=True, on_delete=models.SET_NULL, related_name='active_users'
     )
 
+    role = models.CharField(
+        _('role'),
+        max_length=32,
+        choices=UserRoles.choices,
+        default=UserRoles.ANNOTATOR,
+        help_text=_('Role of the user within the instance'),
+    )
+
     allow_newsletters = models.BooleanField(
         _('allow newsletters'), null=True, default=None, help_text=_('Allow sending newsletters to user')
     )
@@ -147,7 +160,14 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
                 return settings.HOSTNAME + self.avatar.url
 
     def is_organization_admin(self, org_pk):
-        return True
+        if self.role != UserRoles.ADMIN:
+            return False
+        OrganizationMember = apps.get_model('organizations', 'OrganizationMember')
+        return OrganizationMember.objects.filter(
+            user=self,
+            organization_id=org_pk,
+            deleted_at__isnull=True,
+        ).exists()
 
     def active_organization_annotations(self):
         return self.annotations.filter(project__organization=self.active_organization)
@@ -157,11 +177,13 @@ class User(UserMixin, AbstractBaseUser, PermissionsMixin, UserLastActivityMixin)
         return annotations.values_list('project').distinct().count()
 
     @cached_property
-    def own_organization(self) -> Optional[Organization]:
+    def own_organization(self):
+        Organization = apps.get_model('organizations', 'Organization')
         return fast_first(Organization.objects.filter(created_by=self))
 
     @cached_property
     def has_organization(self):
+        Organization = apps.get_model('organizations', 'Organization')
         return Organization.objects.filter(created_by=self).exists()
 
     def clean(self):

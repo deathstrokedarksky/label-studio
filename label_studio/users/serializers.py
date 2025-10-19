@@ -98,6 +98,7 @@ class BaseUserSerializer(FlexFieldsModelSerializer):
             'avatar',
             'initials',
             'phone',
+            'role',
             'active_organization',
             'active_organization_meta',
             'allow_newsletters',
